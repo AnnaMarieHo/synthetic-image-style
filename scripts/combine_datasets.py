@@ -5,7 +5,7 @@ import os
 with open("openfake-annotation/datasets/openfake_raw/metadata.json", "r") as f:
     real_data = json.load(f)
     
-with open("openfake-annotation/datasets/unfiltered_fakes/metadata.json", "r") as f:
+with open("openfake-annotation/datasets/fake_balanced_filtered/metadata.json", "r") as f:
     fake_data = json.load(f)
 
 print(f"Loaded {len(real_data)} real samples and {len(fake_data)} fake samples")
