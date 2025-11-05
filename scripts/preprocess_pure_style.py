@@ -48,7 +48,6 @@ style_embs, labels, clusters, sims = [], [], [], []
 
 print(f"Processing {len(data)} samples...")
 for sample in tqdm(data):
-    # Normalize metadata path for cross-platform usage (Windows -> macOS/Linux)
     p = sample["path"]
     img_path = to_native_path(p, root)
     if not img_path.exists():
