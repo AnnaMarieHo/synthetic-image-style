@@ -4,6 +4,7 @@ from scipy import fftpack
 from scipy.stats import skew, kurtosis
 from skimage import feature
 import warnings
+import os
 
 warnings.filterwarnings('ignore', category=RuntimeWarning, message='invalid value encountered in divide')
 warnings.filterwarnings('ignore', category=RuntimeWarning, message='Precision loss occurred in moment calculation')
@@ -142,44 +143,45 @@ class PureStyleExtractor:
             'edge_coherence': np.mean(cv2.dilate(edges, np.ones((3,3))) == edges) if np.any(edges) else 0,
         }
         return features
-    
-    def __call__(self, image):
+        
+    def __call__(self, image, normalize=True):
         if image.max() <= 1.0:
             image = (image * 255).astype(np.uint8)
         else:
             image = image.astype(np.uint8)
-        
+
         freq_features = self.extract_frequency_features(image)
         noise_features = self.extract_noise_features(image)
         color_features = self.extract_color_features(image)
         texture_features = self.extract_texture_features(image)
         edge_features = self.extract_edge_features(image)
-        
-        all_features = {**freq_features, **noise_features, **color_features, 
-                       **texture_features, **edge_features}
-        
+
+        all_features = {**freq_features, **noise_features, **color_features,
+                    **texture_features, **edge_features}
+
         feature_vector = np.array([all_features[k] for k in sorted(all_features.keys())])
         feature_vector = np.nan_to_num(feature_vector, nan=0.0, posinf=1e10, neginf=-1e10)
-        feature_vector = self._normalize_features(feature_vector)
-        
+
+        if normalize:
+            feature_vector = self._normalize_features(feature_vector)
+
         return feature_vector.astype(np.float32)
-    
     def _normalize_features(self, features):
-        feature_means = np.array([
-            0.9, 0.9, 0.9, 8000, 0.5, 0.2, 7e7, 100, 0.5, 400, 0.5, 0.5,
-            80, 1.5, 50, 15e6, 0.0, 0.0, 1.5, 10e6, 8, 1500, 0.5, 2000, -5
-        ])
-        
-        feature_stds = np.array([
-            0.1, 0.1, 0.1, 3000, 0.2, 0.1, 5e7, 200, 300, 300, 0.2, 0.2,
-            50, 1.0, 30, 12e6, 10, 10, 0.5, 8e6, 10, 1000, 2.0, 1500, 5
-        ])
-        
+        baseline_path = "style_norm_baseline_real.npz"
+        if os.path.exists(baseline_path):
+            # print(f"[INFO] Using baseline normalization from {baseline_path}")
+            baseline = np.load(baseline_path)
+            feature_means = baseline["mean"]
+            feature_stds = baseline["std"]
+        else:
+            print("[WARNING] Baseline not found — using fallback normalization constants!")
+            feature_means = np.zeros_like(features)
+            feature_stds = np.ones_like(features)
+
         normalized = (features - feature_means) / (feature_stds + 1e-8)
         normalized = np.clip(normalized, -10, 10)
-        
         return normalized
-    
+        
     def get_feature_names(self):
         dummy = np.zeros((224, 224, 3), dtype=np.uint8)
         freq = self.extract_frequency_features(dummy)

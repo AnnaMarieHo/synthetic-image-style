@@ -57,6 +57,7 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
     print("="*60)
+    print("EXTRACTING FEATURES + PREDICTIONS FOR LLM TRAINING")
     print("="*60)
     print(f"Device: {device}")
     print(f"Metadata: {metadata_path}")
@@ -68,12 +69,12 @@ def main():
     with open(metadata_path, "r", encoding="utf-8") as f:
         metadata = json.load(f)
     
-    print(f"Loaded {len(metadata)} images from metadata")
+    print(f"✓ Loaded {len(metadata)} images from metadata")
     
-    # Load style extractor
+    # Load style extractor (deterministic, no training)
     style_extractor = PureStyleExtractor(device)
     feature_names = style_extractor.get_feature_names()
-    print(f"Initialized PureStyleExtractor ({len(feature_names)} features)")
+    print(f"✓ Initialized PureStyleExtractor ({len(feature_names)} features)")
     
     # Load trained model
     checkpoint = torch.load(checkpoint_path, map_location=device)
@@ -82,13 +83,14 @@ def main():
     model = PureStyleClassifier(style_dim=style_dim).to(device)
     model.load_state_dict(checkpoint["model"])
     model.eval()
-    print(f"Loaded trained model (trained on 15k unfiltered fakes & 9966 real samples)")
+    print(f"✓ Loaded trained model (trained on 15k+9966 unfiltered)")
     print()
     
     # Process all images
     training_data = []
     errors = []
     
+    print("Processing images...")
     for idx, item in enumerate(tqdm(metadata)):
         try:
             # Resolve image path
@@ -106,10 +108,10 @@ def main():
             # Load image
             img = Image.open(image_path).convert("RGB")
             
-            # Extract 25 style features 
+            # STEP 1: Extract 25 style features (deterministic)
             style_vec = style_extractor(np.array(img))
             
-            # Run through trained model to get prediction
+            # STEP 2: Run through trained model to get prediction
             style_tensor = torch.tensor(style_vec, dtype=torch.float32).unsqueeze(0).to(device)
             with torch.no_grad():
                 logits = model(style_tensor)
@@ -159,7 +161,7 @@ def main():
     print(f"Successfully processed: {len(training_data)}/{len(metadata)} images")
     
     if errors:
-        print(f"Errors: {len(errors)}")
+        print(f"⚠ Errors: {len(errors)}")
         if len(errors) <= 5:
             for err in errors:
                 print(f"  - {err}")
@@ -173,7 +175,7 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(training_data, f, indent=2, ensure_ascii=False)
     
-    print(f"\nSaved to: {output_path}")
+    print(f"\n✅ Saved to: {output_path}")
     
     # Show example
     if training_data:
@@ -210,6 +212,12 @@ def main():
     accuracy = correct / len(predictions) if predictions else 0
     print(f"\nAccuracy on this subset: {accuracy:.1%}")
     
+    print()
+    print("="*60)
+    print("✨ READY FOR LLM TRAINING!")
+    print("="*60)
+    print("Next step: Generate explanations based on these features")
+    print()
 
 
 if __name__ == "__main__":
