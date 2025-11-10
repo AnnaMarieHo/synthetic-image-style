@@ -4,6 +4,7 @@ from scipy import fftpack
 from scipy.stats import skew, kurtosis
 from skimage import feature
 import warnings
+import os
 
 warnings.filterwarnings('ignore', category=RuntimeWarning, message='invalid value encountered in divide')
 warnings.filterwarnings('ignore', category=RuntimeWarning, message='Precision loss occurred in moment calculation')
@@ -11,7 +12,7 @@ warnings.filterwarnings('ignore', category=RuntimeWarning, message='Precision lo
 
 class PureStyleExtractor:
     """
-    Extracts ONLY 25 technical features (no CLIP)
+    Extracts 25 technical features
     """
     
     def __init__(self, device="cpu"):
@@ -142,29 +143,31 @@ class PureStyleExtractor:
             'edge_coherence': np.mean(cv2.dilate(edges, np.ones((3,3))) == edges) if np.any(edges) else 0,
         }
         return features
-    
-    def __call__(self, image):
+        
+    def __call__(self, image, normalize=True):
         if image.max() <= 1.0:
             image = (image * 255).astype(np.uint8)
         else:
             image = image.astype(np.uint8)
-        
+
         freq_features = self.extract_frequency_features(image)
         noise_features = self.extract_noise_features(image)
         color_features = self.extract_color_features(image)
         texture_features = self.extract_texture_features(image)
         edge_features = self.extract_edge_features(image)
-        
-        all_features = {**freq_features, **noise_features, **color_features, 
-                       **texture_features, **edge_features}
-        
+
+        all_features = {**freq_features, **noise_features, **color_features,
+                    **texture_features, **edge_features}
+
         feature_vector = np.array([all_features[k] for k in sorted(all_features.keys())])
         feature_vector = np.nan_to_num(feature_vector, nan=0.0, posinf=1e10, neginf=-1e10)
-        feature_vector = self._normalize_features(feature_vector)
-        
+
+        if normalize:
+            feature_vector = self._normalize_features(feature_vector)
+
         return feature_vector.astype(np.float32)
-    
     def _normalize_features(self, features):
+        # Use robust hand-tuned constants that generalize across splits
         feature_means = np.array([
             0.9, 0.9, 0.9, 8000, 0.5, 0.2, 7e7, 100, 0.5, 400, 0.5, 0.5,
             80, 1.5, 50, 15e6, 0.0, 0.0, 1.5, 10e6, 8, 1500, 0.5, 2000, -5
@@ -179,7 +182,7 @@ class PureStyleExtractor:
         normalized = np.clip(normalized, -10, 10)
         
         return normalized
-    
+        
     def get_feature_names(self):
         dummy = np.zeros((224, 224, 3), dtype=np.uint8)
         freq = self.extract_frequency_features(dummy)
