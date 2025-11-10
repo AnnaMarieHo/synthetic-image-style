@@ -3,38 +3,20 @@ from torch.utils.data import DataLoader, Subset
 import torch.nn as nn
 from utils.dataset_pure_style import PureStyleDataset
 from utils.balanced_sampler import BalancedBatchSampler
+from models.mlp_classifier import PureStyleClassifier
 import numpy as np
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-class PureStyleClassifier(nn.Module):
-    def __init__(self, style_dim=25, hidden_dim=128):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(style_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(hidden_dim, 64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, 1)
-        )
-    
-    def forward(self, style_features):
-        return self.net(style_features)
-
 dataset = PureStyleDataset("openfake-annotation/datasets/combined/cache/pure_style_embeddings.npz")
+# dataset = PureStyleDataset("evaluate/pure_style_embeddings.npz")
 
 style_dim = dataset.style.shape[1]
 print(f"Style dimension: {style_dim}")
 
 model = PureStyleClassifier(style_dim=style_dim).to(device)
 opt = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.01)
+
 
 labels = dataset.label.numpy()
 print(f"Dataset: {len(dataset)} samples | Real: {(labels==1).sum()} | Fake: {(labels==0).sum()}")
@@ -46,20 +28,36 @@ np.random.seed(42)
 np.random.shuffle(real_idx)
 np.random.shuffle(fake_idx)
 
-train_real = real_idx[:int(0.8 * len(real_idx))]
-val_real = real_idx[int(0.8 * len(real_idx)):]
-train_fake = fake_idx[:int(0.8 * len(fake_idx))]
-val_fake = fake_idx[int(0.8 * len(fake_idx)):]
+# Balance the fake samples to match real count
+n_real = len(real_idx)
+n_fake = len(fake_idx)
+fake_idx = fake_idx[:n_fake]
 
+# Split both into train/val with the same 80/20 ratio
+split_real = int(0.8 * n_real)
+split_fake = int(0.8 * n_fake)
+
+train_real = real_idx[:split_real]
+val_real   = real_idx[split_real:]
+train_fake = fake_idx[:split_fake]
+val_fake   = fake_idx[split_fake:]
+
+# Combine to make balanced train/val datasets
 train_idx = np.concatenate([train_real, train_fake])
-val_idx = np.concatenate([val_real, val_fake])
+val_idx   = np.concatenate([val_real, val_fake])
+
+# Shuffle again to mix reals and fakes
+np.random.shuffle(train_idx)
+np.random.shuffle(val_idx)
 
 train_ds = Subset(dataset, train_idx)
-val_ds = Subset(dataset, val_idx)
+val_ds   = Subset(dataset, val_idx)
 
 train_labels = labels[train_idx]
+val_labels   = labels[val_idx]
+
 print(f"Train: {len(train_ds)} samples | Real: {(train_labels==1).sum()} | Fake: {(train_labels==0).sum()}")
-print(f"Val: {len(val_idx)} samples | Real: {(labels[val_idx]==1).sum()} | Fake: {(labels[val_idx]==0).sum()}")
+print(f"Val:   {len(val_ds)} samples | Real: {(val_labels==1).sum()} | Fake: {(val_labels==0).sum()}")
 
 batch_size = 128
 train_sampler = BalancedBatchSampler(train_labels, batch_size)
