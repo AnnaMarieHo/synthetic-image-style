@@ -16,12 +16,12 @@ def parse_args():
         default="openfake-annotation/datasets/combined/metadata.json",
         help="Path to input metadata JSON (relative to data root or absolute)")
     parser.add_argument("--out-path", "--out_path", dest="out_path", type=str,
-        default="openfake-annotation/datasets/combined/cache/pure_style_embeddings.npz",
+        default="openfake-annotation/datasets/combined/cache/512_style_embeddings.npz",
         help="Output .npz path (relative to data root or absolute)")
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"],
         help="Device for style extractor")
-    parser.add_argument("--patch-size", type=int, default=256, help="Patch size in pixels")
-    parser.add_argument("--stride", type=int, default=256, help="Stride for patch extraction")
+    parser.add_argument("--patch-size", type=int, default=512, help="Patch size in pixels")
+    parser.add_argument("--stride", type=int, default=512, help="Stride for patch extraction")
     parser.add_argument("--pool", type=str, default="mean", choices=["mean", "median", "max"],
         help="Pooling method for patch-level features")
     parser.add_argument("--multi-stat", action="store_true",

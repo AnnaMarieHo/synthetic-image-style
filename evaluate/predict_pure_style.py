@@ -25,7 +25,7 @@ def main():
         return
     
     image_path = sys.argv[1]
-    checkpoint_path = "checkpoints/pure_style.pt"
+    checkpoint_path = "checkpoints/pure_style_cifake.pt"
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     

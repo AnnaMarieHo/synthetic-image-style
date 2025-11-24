@@ -6,11 +6,14 @@ path = "openfake-annotation/datasets/combined/llm_training_data.jsonl"
 records = [json.loads(line) for line in open(path, "r", encoding="utf-8")]
 df = pd.DataFrame(records)[:19932]
 
+
 from sklearn.preprocessing import LabelEncoder
 
 le = LabelEncoder()
 df["true_label"] = le.fit_transform(df["true_label"])
 df["prediction"] = le.transform(df["prediction"])
+
+
 
 from sklearn.metrics import confusion_matrix, classification_report
 

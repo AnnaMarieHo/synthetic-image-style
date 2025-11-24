@@ -8,7 +8,7 @@ import numpy as np
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-dataset = PureStyleDataset("openfake-annotation/datasets/combined/cache/pure_style_embeddings.npz")
+dataset = PureStyleDataset("openfake-annotation/datasets/combined/cache/pure_style_embeddings_cifake.npz")
 # dataset = PureStyleDataset("evaluate/pure_style_embeddings.npz")
 
 style_dim = dataset.style.shape[1]
@@ -29,8 +29,10 @@ np.random.shuffle(real_idx)
 np.random.shuffle(fake_idx)
 
 # Balance the fake samples to match real count
-n_real = len(real_idx)
-n_fake = len(fake_idx)
+# n_real = len(real_idx)
+# n_fake = len(fake_idx)
+n_real = 10000
+n_fake = 10000
 fake_idx = fake_idx[:n_fake]
 
 # Split both into train/val with the same 80/20 ratio
@@ -121,11 +123,11 @@ for epoch in range(30):
         torch.save({
             "model": model.state_dict(),
             "style_dim": style_dim,
-        }, "checkpoints/pure_style.pt")
+        }, "checkpoints/pure_style_cifake.pt")
         print(" Best!")
     else:
         print()
 
-print(f"\nSaved to checkpoints/pure_style.pt")
+print(f"\nSaved to checkpoints/pure_style_cifake.pt")
 print(f"Best AUC: {best_auc:.4f}")
 

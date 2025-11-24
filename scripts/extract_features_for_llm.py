@@ -67,7 +67,7 @@ def main():
     # metadata_path = "openfake-annotation/datasets/fake_balanced_filtered/metadata.json"
     metadata_path = "openfake-annotation/datasets/combined/metadata.json"
     checkpoint_path = "checkpoints/pure_style.pt"
-    output_path = "openfake-annotation/datasets/combined/llm_training_data.jsonl"
+    output_path = "openfake-annotation/datasets/combined/llm_training_data_real.jsonl"
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     

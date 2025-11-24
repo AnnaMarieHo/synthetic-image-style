@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--dataset_name", type=str, default="ComplexDataLab/OpenFake")
 parser.add_argument("--split", type=str, default="train")
 parser.add_argument("--num_samples", type=int, default=20000)
-parser.add_argument("--out_dir", type=str, default="datasets/openfake_raw")
+parser.add_argument("--out_dir", type=str, default="datasets/test")
 args = parser.parse_args()
 
 real_dir = os.path.join(args.out_dir, "real")
