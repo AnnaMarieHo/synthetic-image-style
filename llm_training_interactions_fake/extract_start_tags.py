@@ -150,7 +150,6 @@ def main():
     # Default files to process
     default_files = [
         "annotated/merged_metadata_fake.json",
-
     ]
     
     # Get input files from command line or use defaults

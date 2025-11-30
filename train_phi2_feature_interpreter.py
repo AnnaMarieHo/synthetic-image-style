@@ -21,7 +21,7 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import BitsAndBytesConfig
-from patches_and_gradcam.prompts import get_inference_prompt
+from patches_and_gradcam.prompts import get_training_prompt
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -89,13 +89,7 @@ class FeatureInteractionDataset(Dataset):
                 skipped_incomplete += 1
                 continue
             
-            # Format interactions as JSON string (matching inference format)
-            # This JSON includes ALL THREE required components for each pair:
-            # 1. features: [feature_name_1, feature_name_2] - the feature pair
-            # 2. coherency: float - the interaction strength/coherency value
-            # 3. values: [value_1, value_2] - the actual feature values (z-scores)
-            # The caption (target output) is directly tied to these values and describes
-            # the relationships between coherency, feature pairs, and their values
+           
             interactions_json = json.dumps({"top_pairs": top_pairs}, indent=2, ensure_ascii=False)
             
             # Extract individual features from pairs for top values
@@ -110,27 +104,13 @@ class FeatureInteractionDataset(Dataset):
                         else:
                             # Fallback to coherency if values not available
                             feature_scores[feat] = pair.get('coherency', 0.0)
-            
-            # Format top features to match inference format (top 3, with value)
-            # top_features_items = sorted(feature_scores.items(), key=lambda x: abs(x[1]), reverse=True)[:3]
-            # top_features_str = "\n".join([
-            #     f"  {feat} = {val:.2f}"
-            #     for feat, val in top_features_items
-            # ])
-            
-            # Use caption as the target output (ground truth)
-            # The caption describes the relationships between:
-            # - Feature pairs (which features interact)
-            # - Coherency values (strength of interaction: strong/moderate/weak)
-            # - Feature values (z-scores: above/below mean, magnitudes, signs)
-            # The model will learn to generate captions that directly reference these values
+       
             caption = item["caption"].strip()
             
             self.data.append({
                 "prob_fake": prob_fake,
                 "prediction": prediction,
                 "interactions_json": interactions_json,
-                # "top_features": top_features_str,
                 "caption": caption
             })
         
@@ -145,6 +125,7 @@ class FeatureInteractionDataset(Dataset):
         if skipped_incomplete > 0:
             print(f"Skipped {skipped_incomplete} samples with incomplete data (missing pairs/coherency/values/caption)")
         print(f"Loaded {len(self.data)} samples with feature interactions")
+
         if len(self.data) > 0:
             # Verify first sample has all required fields
             sample = self.data[0]
@@ -163,35 +144,12 @@ class FeatureInteractionDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
         
-        prompt = get_inference_prompt(
+        prompt = get_training_prompt(
             item['prob_fake'],
             item['interactions_json'],
             # item['top_features'],
         )
-        # Use prompt functions from prompts.py to match inference format exactly
-        # Pass empty string for location_str (patch information not used)
-        # if item['prob_fake'] > 0.5:
-        #     # FAKE format
-        #     prompt = get_fake_prompt(
-        #         item['prob_fake'],
-        #         item['interactions_json'],
-        #         item['top_features'],
-        #         ''  # No patch location information
-        #     )
-        # else:
-        #     # REAL format
-        #     prob_real = 1 - item['prob_fake']
-        #     prompt = get_fake_prompt(
-        #         prob_real,
-        #         item['interactions_json'],
-        #         item['top_features'],
-        #         ''  # No patch location information
-        #     )
-        
-        # Append the caption (ground truth target output)
-        # The prompt contains the interactions_json with pairs, coherency, and values
-        # The caption is the expected output that interprets these specific values
-        # This creates a direct mapping: (pairs + coherency + values) -> caption
+       
         text = prompt + "\n" + item['caption']
         
         # Tokenize
@@ -211,10 +169,8 @@ class FeatureInteractionDataset(Dataset):
 
 
 def main():
-    print("="*70)
     print("Fine-Tuning Qwen 2.5 1.5B Instruct for Feature Interpretation")
-    print("="*70)
-    
+
     # Load model with quantization
     print("\nLoading Qwen 2.5 1.5B Instruct with 4-bit quantization...")
     model_name = "Qwen/Qwen2.5-1.5B-Instruct"
@@ -311,7 +267,6 @@ def main():
         data_collator=data_collator,
     )
     
-    print("="*70)
     print("Training Configuration:")
     print(f"  Samples: {len(train_dataset)}")
     print(f"  Epochs: {training_args.num_train_epochs}")
@@ -319,11 +274,8 @@ def main():
     print(f"  Gradient accumulation: {training_args.gradient_accumulation_steps}")
     print(f"  Effective batch size: {training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps}")
     print(f"  Learning rate: {training_args.learning_rate}")
-    print("="*70 + "\n")
-    
-    print("Starting training...")
-    print("This will take approximately 30-60 minutes on your 6GB GPU\n")
-    
+
+
     trainer.train()
     
     # Save
@@ -331,16 +283,9 @@ def main():
     model.save_pretrained("trained_qwen2.5_1.5b_feature_interpreter/model")
     tokenizer.save_pretrained("trained_qwen2.5_1.5b_feature_interpreter/tokenizer")
     
-    print("\n" + "="*70)
-    print("TRAINING COMPLETE!")
-    print("="*70)
+    print("TRAINING COMPLETE")
     print(f"Model saved to: trained_qwen2.5_1.5b_feature_interpreter/")
-    print("\nThis demonstrates:")
-    print("  - Fine-tuning (training algorithm design)")
-    print("  - Domain-specific dataset (feature interactions)")
-    print("  - Understanding LLMs (feature interpretation task)")
     print("\nNext: Use explain_features_with_interactions.py with --finetuned flag")
-    print("="*70)
 
 
 if __name__ == "__main__":

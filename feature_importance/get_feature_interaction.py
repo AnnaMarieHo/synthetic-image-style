@@ -1,6 +1,3 @@
-# feature_attention/extract_mlp_interactions_with_coherency.py
-# Updated to include patch-level feature extraction and location information
-
 import torch
 import json
 import glob
@@ -22,11 +19,8 @@ except ImportError:
     def tqdm(iterable, desc="", total=None):
         return iterable
 
-# ============================================================
-# 1. Load JSON samples and extract patch-level features
-# ============================================================
+# Load JSON samples and extract patch-level features
 
-# files = glob.glob("feature_importance/*real.json")
 files = glob.glob("feature_importance/*.json")
 print("Found:", len(files), "json files.")
 
@@ -113,7 +107,7 @@ for file_idx, json_path in enumerate(tqdm(files, desc="Loading JSON files", disa
             feats = ex.get("style_features")
             if feats is None:
                 continue
-            # Use pre-computed features (old behavior)
+            # Use pre-computed features 
             if len(X) == 0:
                 # Initialize feature_names from first sample
                 feature_names_from_json = list(feats.keys())
@@ -188,12 +182,9 @@ X_tensor = torch.tensor(X, device=device)
 # Model is already loaded above
 print("MLP classifier ready for feature interaction analysis.")
 
-# ============================================================
-# 3. PASS 1 — Collect Global Frequencies
-# ============================================================
+# PASS 1 — Collect Global Frequencies
 
 pair_freq = defaultdict(int)
-# triplet_freq = defaultdict(int)
 
 print("\nPASS 1: Gathering pair frequencies...\n")
 pass1_start = time.time()
@@ -231,7 +222,6 @@ total_samples = len(X_tensor)
 
 # Normalize frequencies to 0–1
 pair_freq_norm = {k: v / total_samples for k, v in pair_freq.items()}
-# triplet_freq_norm = {k: v / total_samples for k, v in triplet_freq.items()}
 
 # Normalize frequencies to 0–1
 pair_freq_norm_savable = {
@@ -245,15 +235,12 @@ freq_out_path = "feature_importance/pair_freq_norm.json"
 with open(freq_out_path, "w") as f:
     json.dump(pair_freq_norm_savable, f, indent=2)
 
-print(f"Saved global frequency map to -> {freq_out_path}")
-# ----------------------------------------------------------------------
+print(f"Saved global frequency map to: {freq_out_path}")
 
 pass1_elapsed = time.time() - pass1_start
 print(f"\nPASS 1 complete in {pass1_elapsed:.1f}s ({len(X_tensor)/pass1_elapsed:.1f} samples/s)\n")
 
-# ============================================================
 # Domain similarity (for coherency)
-# ============================================================
 
 def domain(feature_name):
     return feature_name.split("_")[0]
@@ -272,9 +259,7 @@ def domain_similarity(f1, f2):
         return 0.8
     return 0.3  # weak relation
 
-# ============================================================
-# 4. PASS 2 — Compute interactions with coherency score
-# ============================================================
+# PASS 2 — Compute interactions with coherency score
 
 results_fake = {}
 results_real = {}
@@ -295,10 +280,10 @@ for i in tqdm(range(len(X_tensor)), desc="PASS 2: Computing interactions", disab
     grads = x.grad.detach()[0]
     importance = (grads * x[0]).abs().detach().cpu().numpy()
 
-    # ---- top features ----
+    # top features
     top_idx = np.argsort(-importance)[:10]
 
-    # ----------- Compute pair coherency -----------
+    # Compute pair coherency 
     pair_scores = []
     for a in range(len(top_idx)):
         for b in range(a + 1, len(top_idx)):
@@ -327,7 +312,7 @@ for i in tqdm(range(len(X_tensor)), desc="PASS 2: Computing interactions", disab
     ]
 
 
-    # ========== Compute patch-level information ==========
+    #  Compute patch-level information 
     patch_info = None
     if patch_data[i] is not None:
         patch_feats = patch_data[i]["patch_feats"]
@@ -347,7 +332,6 @@ for i in tqdm(range(len(X_tensor)), desc="PASS 2: Computing interactions", disab
         # Format patch locations for output
         patch_info = {
             "patch_importance": patch_importance.tolist(),
-            # "patch_locations": [(int(y), int(x)) for y, x in patch_locations],
             "important_regions": {
                 "high": [
                     {
@@ -396,24 +380,22 @@ total_elapsed = time.time() - start_time
 print(f"\nPASS 2 complete in {pass2_elapsed:.1f}s ({len(X_tensor)/pass2_elapsed:.1f} samples/s)")
 print(f"Total processing time: {total_elapsed:.1f}s\n")
 
-# ============================================================
-# 5. Save results
-# ============================================================
+# Save results
 
 print("Saving results...")
 
 # Save fake samples
-out_path_fake = "feature_importance/mlp_interactions_with_coherency_fake.json"
+out_path_fake = "feature_importance/coherency/mlp_interactions_with_coherency_fake.json"
 with open(out_path_fake, "w") as f:
     json.dump(results_fake, f, indent=2)
-print(f"Saved fake coherency interaction map → {out_path_fake}")
+print(f"Saved fake coherency interaction map: {out_path_fake}")
 print(f"  Fake images processed: {len(results_fake)}")
 
 # Save real samples
-out_path_real = "feature_importance/mlp_interactions_with_coherency_real.json"
+out_path_real = "feature_importance/coherency/mlp_interactions_with_coherency_real.json"
 with open(out_path_real, "w") as f:
     json.dump(results_real, f, indent=2)
-print(f"Saved real coherency interaction map → {out_path_real}")
+print(f"Saved real coherency interaction map: {out_path_real}")
 print(f"  Real images processed: {len(results_real)}")
 
 print(f"\nTotal images processed: {len(results_fake) + len(results_real)}")

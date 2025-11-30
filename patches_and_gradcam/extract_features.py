@@ -113,9 +113,7 @@ def extract_style_features_and_interactions(image_path, device):
     print(f"Classifier Result: {prob_fake:.1%} probability FAKE")
     print(f"Prediction: {'FAKE' if prob_fake > 0.5 else 'REAL'}\n")
     
-    # ============================================================
     # GRADIENT-BASED FEATURE IMPORTANCE 
-    # ============================================================
     print("Computing feature importance using gradients...")
     
     x = torch.tensor(style_vec, dtype=torch.float32, device=device).unsqueeze(0)
@@ -158,22 +156,7 @@ def extract_style_features_and_interactions(image_path, device):
     # Extract the 25D mean values for display
     features_25d = style_vec[:25]
     
-    # # Map top features to their values (use mean values primarily)
-    # top_features = []
-    # for i in top_idx[:5]:
-    #     if i < 25:
-    #         # This is a mean value
-    #         top_features.append((feature_names[i], style_vec[i], importance[i]))
-    #     else:
-    #         # This is std/max/min, map back to base feature
-    #         base_idx = (i - 25) % 25
-    #         stat_type = ["std", "max", "min"][(i - 25) // 25]
-    #         top_features.append((f"{base_feature_names[base_idx]}_{stat_type}", style_vec[i], importance[i]))
-    
-    # Compute top pairs (like training script)
-   # ... (inside extract_style_features_and_interactions) ...
-    # Compute top pairs (like training script)
-    # --- CODE TO REPLACE TOP_PAIRS CALCULATION IN INFERENCE FUNCTION ---
+
     pair_scores = []
 
     for a in range(len(top_idx)):
@@ -200,19 +183,14 @@ def extract_style_features_and_interactions(image_path, device):
             # 4. Final Full Bounded Coherency
             coherency = freq_score * dom_score * mag_score
 
-            # Append result to pair_scores...
-            # ...
+            # Append result to pair_scores
             pair_scores.append({
                 "features": [name1, name2],
-                "coherency": float(coherency), # Now bounded between 0.0 and 1.0
+                "coherency": float(coherency), # Bounded between 0.0 and 1.0
                 "values": [float(style_vec[i1]), float(style_vec[i2])]
             })
     
     pair_scores.sort(key=lambda x: x["coherency"], reverse=True)
-    pair_scores = pair_scores[:5]  # Use top 5 pairs to match training format
-    
+    pair_scores = pair_scores[:5]  # Use top 5 pairs
 
-    # print(f"[OK] Identified top {len(top_features)} important features\n")
-    
-    # return features_25d, prob_fake, top_features, pair_scores, img_array, patch_locations, patch_feats, top_idx, importance
     return features_25d, prob_fake, pair_scores, img_array, patch_locations, patch_feats, top_idx, importance

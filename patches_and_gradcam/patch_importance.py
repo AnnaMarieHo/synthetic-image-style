@@ -56,13 +56,13 @@ def compute_patch_gradcam(classifier, patch_feats, top_idx, importance, style_di
             continue
             
         if feat_idx < 25:
-            # This is a mean value - check how much each patch contributes
+            # mean value - check how much each patch contributes
             feat_grad = patch_grads[:, feat_idx]  # Gradient for this feature across patches
             feat_value = patch_feats_tensor[:, feat_idx]  # Feature value for each patch
-            # Importance = gradient * value (like grad * input), weighted by feature importance
             patch_importance += (feat_grad * feat_value).abs() * importance[feat_idx]
+
         elif use_multi_stat:
-            # For std/max/min, we need to compute how patches contribute
+            # For std/max/min, we compute how patches contribute
             base_idx = (feat_idx - 25) % 25
             stat_type_idx = (feat_idx - 25) // 25
             

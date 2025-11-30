@@ -261,5 +261,49 @@ Rules:
 INTERACTING FEATURES (Raw Data):
 {interactions_json}
 
+- Sentence 1 (Strongest Interaction): Use the Top Pair information above. Reference the exact coherency score and calculated strength.
+- Sentence 3 (Secondary Interaction): If a second pair exists, reference Reference the exact coherency score, magnitude, and strength.
+
+RELATIVE DIFFERENCE RULE:
+- Calculate the percentage difference between the two absolute feature values.
+- If the difference is greater than 5%, state 'magnitudes differ significantly'; otherwise, state 'magnitudes are similar'."
+
+Explanation:"""
+
+
+
+
+def get_training_prompt(prob_fake, interactions_json):
+    """
+    Generate prompt for DEEPFAKE classification.
+    
+    Args:
+        prob_fake: Probability of being fake (0-1)
+        interactions_json: Raw JSON object (as string) of feature interactions with features, coherency, and values
+        top_features_str: Formatted string of top feature values
+        location_str: Formatted string of spatial regions
+    
+    Returns:
+        Complete prompt string
+    """
+    
+    return f"""
+
+
+Task: Write 2-3 sentences in sentence format interpreting these image-style feature interactions. 
+Rules: 
+- Begin your response with a <START> tag. 
+- Focus on the NUMERICAL VALUES and their relationships 
+- Feature values are z-scores
+- A negative value means the feature is below the dataset mean.
+- A positive value means the feature is above the dataset mean.
+- The sign DOES NOT indicate correlation direction between features.
+- The magnitude DOES NOT indicate absolute "noise" or "color" — only relative deviation.
+ 
+INTERACTING FEATURES (Raw Data):
+{interactions_json}
+
+- Sentence 1 (Strongest Interaction): Use the Top Pair information above. Reference the exact coherency score and calculated strength.
+- Sentence 3 (Secondary Interaction): If a second pair exists, reference Reference the exact coherency score, magnitude, and strength.
 
 Explanation:"""
