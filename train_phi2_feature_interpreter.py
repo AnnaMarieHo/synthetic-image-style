@@ -1,16 +1,12 @@
 """
 Fine-tune Qwen 2.5 1.5B Instruct on Feature Interaction Dataset
 
-Uses your domain-specific dataset (feature interactions) to fine-tune
 Qwen 2.5 1.5B Instruct for deepfake feature interpretation.
 
-This demonstrates:
-- Fine-tuning (training algorithm design)
-- Domain-specific dataset
-- Understanding LLMs
 """
 import json
 import torch
+import numpy as np
 from torch.utils.data import Dataset
 from transformers import (
     AutoTokenizer,
@@ -19,9 +15,14 @@ from transformers import (
     Trainer,
     DataCollatorForLanguageModeling
 )
+from torch.utils.data import Subset, ConcatDataset
+import random
+from transformers import TrainerCallback
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import BitsAndBytesConfig
 from patches_and_gradcam.prompts import get_training_prompt
+
+#  using only Perplexity (PPL) for evaluation
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -57,7 +58,7 @@ class FeatureInteractionDataset(Dataset):
             prediction = "FAKE" if prob_fake > 0.5 else "REAL"
             
             # Get top feature pairs (with features, coherency, and values)
-            raw_top_pairs = item["top_pairs"][:5]  # Use top 5 pairs to match inference format
+            raw_top_pairs = item["top_pairs"][:5]  # Use top 5 pairs to match training caption data
             
             # Validate and ensure all pairs have features, coherency, and values
             top_pairs = []
@@ -107,11 +108,18 @@ class FeatureInteractionDataset(Dataset):
        
             caption = item["caption"].strip()
             
+            # Store prompt separately for evaluation
+            prompt = get_training_prompt(
+                prob_fake,
+                interactions_json,
+            )
+            
             self.data.append({
                 "prob_fake": prob_fake,
                 "prediction": prediction,
                 "interactions_json": interactions_json,
-                "caption": caption
+                "caption": caption,
+                "prompt": prompt
             })
         
         # Limit to max_samples if specified
@@ -144,12 +152,8 @@ class FeatureInteractionDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
         
-        prompt = get_training_prompt(
-            item['prob_fake'],
-            item['interactions_json'],
-            # item['top_features'],
-        )
-       
+        # Use stored prompt
+        prompt = item['prompt']
         text = prompt + "\n" + item['caption']
         
         # Tokenize
@@ -166,6 +170,20 @@ class FeatureInteractionDataset(Dataset):
             "attention_mask": encoding["attention_mask"].squeeze(),
             "labels": encoding["input_ids"].squeeze()
         }
+    
+    def get_prompt_and_caption(self, idx):
+        """Helper method to get prompt and caption for evaluation"""
+        item = self.data[idx]
+        return item['prompt'], item['caption']
+
+
+def compute_metrics(eval_pred):
+    """
+    Bare minimum: Just return empty dict.
+    Perplexity is computed from eval_loss by the PerplexityCallback.
+    This avoids accumulating predictions in memory.
+    """
+    return {}
 
 
 def main():
@@ -209,14 +227,14 @@ def main():
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
     
-    print("\nModel loaded!\n")
+    print("\nModel loaded\n")
     
-    # Load datasets from merged metadata files (limited to 450 each)
+    # Load datasets from merged metadata files (limited to 900 each)
     fake_dataset = FeatureInteractionDataset(
         "merged_metadata_fake.json",
         tokenizer,
         max_length=768,
-        max_samples=400
+        max_samples=900
     )
     
     # Load real examples
@@ -225,17 +243,77 @@ def main():
             "merged_metadata_real.json",
             tokenizer,
             max_length=768,
-            max_samples=400
+            max_samples=900
         )
         # Combine datasets
         from torch.utils.data import ConcatDataset
         combined_dataset = ConcatDataset([fake_dataset, real_dataset])
         print(f"Combined dataset: {len(combined_dataset)} samples (fake + real)\n")
-        train_dataset = combined_dataset
+        full_dataset = combined_dataset
     except Exception as e:
         print(f"Note: Could not load real examples: {e}")
         print("Using only fake examples\n")
-        train_dataset = fake_dataset
+        full_dataset = fake_dataset
+    
+    # Stratified split to ensure balanced fake/real distribution in train and eval
+    
+    random.seed(42)
+    
+    if isinstance(full_dataset, ConcatDataset) and len(full_dataset.datasets) == 2:
+        # do stratified split
+        fake_dataset_obj = full_dataset.datasets[0]
+        real_dataset_obj = full_dataset.datasets[1]
+        fake_len = len(fake_dataset_obj)
+        real_len = len(real_dataset_obj)
+        
+        # Create indices for fake and real separately
+        fake_indices = list(range(fake_len))
+        real_indices = list(range(fake_len, fake_len + real_len))
+        
+        # Shuffle each class separately
+        random.shuffle(fake_indices)
+        random.shuffle(real_indices)
+        
+        # Split each class 90/10
+        fake_train_size = int(0.9 * fake_len)
+        real_train_size = int(0.9 * real_len)
+        
+        fake_train_indices = fake_indices[:fake_train_size]
+        fake_eval_indices = fake_indices[fake_train_size:]
+        real_train_indices = real_indices[:real_train_size]
+        real_eval_indices = real_indices[real_train_size:]
+        
+        # Combine train and eval indices
+        train_indices = fake_train_indices + real_train_indices
+        eval_indices = fake_eval_indices + real_eval_indices
+        
+        # Shuffle the combined indices to mix fake/real within each set
+        random.shuffle(train_indices)
+        random.shuffle(eval_indices)
+        
+        # Create Subsets
+        train_dataset = Subset(full_dataset, train_indices)
+        eval_dataset = Subset(full_dataset, eval_indices)
+        
+        print(f"Train samples: {len(train_dataset)}, Eval samples: {len(eval_dataset)}")
+        print(f"  Train: {len(fake_train_indices)} fake, {len(real_train_indices)} real (balanced)")
+        print(f"  Eval: {len(fake_eval_indices)} fake, {len(real_eval_indices)} real (balanced)")
+    else:
+        # Single dataset (only fake or only real)
+        all_indices = list(range(len(full_dataset)))
+        random.shuffle(all_indices)
+        
+        train_size = int(0.9 * len(full_dataset))
+        train_indices = all_indices[:train_size]
+        eval_indices = all_indices[train_size:]
+        
+        train_dataset = Subset(full_dataset, train_indices)
+        eval_dataset = Subset(full_dataset, eval_indices)
+        
+        print(f"Train samples: {len(train_dataset)}, Eval samples: {len(eval_dataset)}")
+        print(f"  (Single class dataset - no balancing needed)")
+    print()
+    
     
     # Data collator
     data_collator = DataCollatorForLanguageModeling(
@@ -247,33 +325,75 @@ def main():
     training_args = TrainingArguments(
         output_dir="trained_qwen2.5_1.5b_feature_interpreter",
         per_device_train_batch_size=2,
+        per_device_eval_batch_size=2,
         gradient_accumulation_steps=8,
         learning_rate=2e-4,
         num_train_epochs=3,
         fp16=True,
         logging_steps=10,
-        save_strategy="epoch",
+        eval_steps=20,  # Evaluate every 20 steps (more frequent to catch issues early)
+        eval_strategy="steps",  # Enable evaluation during training
+        save_strategy="steps",  # Must match eval_strategy when load_best_model_at_end=True
+        save_steps=20,  # Save every 20 steps (same as eval_steps)
         save_total_limit=2,
         warmup_steps=50,
         report_to="none",
         gradient_checkpointing=True,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_perplexity",
+        greater_is_better=False,  # Lower perplexity is better
+        dataloader_pin_memory=False,  # help with memory
+        prediction_loss_only=True,  # Only compute loss, don't accumulate predictions to save memory
+        # Note to self: dataloader_shuffle defaults to True for training, False for eval
     )
+    
+    # Perplexity is computed from eval_loss by the callback
+    # Custom callback to add perplexity from eval_loss
+    
+    class PerplexityCallback(TrainerCallback):
+        def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+            # Add perplexity to metrics if eval_loss is present
+            # Using 'eval_perplexity' prefix to match Trainer's metric naming
+            if metrics is not None and 'eval_loss' in metrics:
+                eval_loss = metrics['eval_loss']
+                perplexity = np.exp(min(eval_loss, 50))  # Clamp to avoid overflow
+                metrics['eval_perplexity'] = float(perplexity)
+                # Also log it explicitly so it appears in output
+                if state.is_local_process_zero:
+                    print(f"  eval_perplexity: {perplexity:.4f}")
+        
+        def on_log(self, args, state, control, logs=None, **kwargs):
+            # Ensure perplexity appears in logs if eval_loss is present
+            if logs is not None and 'eval_loss' in logs and 'eval_perplexity' not in logs:
+                eval_loss = logs['eval_loss']
+                perplexity = np.exp(min(eval_loss, 50))
+                logs['eval_perplexity'] = float(perplexity)
+    
+    perplexity_callback = PerplexityCallback()
     
     # Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         data_collator=data_collator,
+        compute_metrics=compute_metrics,
+        callbacks=[perplexity_callback],
     )
     
     print("Training Configuration:")
-    print(f"  Samples: {len(train_dataset)}")
+    print(f"  Train samples: {len(train_dataset)}")
+    print(f"  Eval samples: {len(eval_dataset)}")
     print(f"  Epochs: {training_args.num_train_epochs}")
     print(f"  Batch size: {training_args.per_device_train_batch_size}")
     print(f"  Gradient accumulation: {training_args.gradient_accumulation_steps}")
     print(f"  Effective batch size: {training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps}")
     print(f"  Learning rate: {training_args.learning_rate}")
+    print(f"  Evaluation strategy: {training_args.eval_strategy}")
+    print(f"  Eval steps: {training_args.eval_steps}")
+    print(f"  Metrics: Perplexity (PPL) only")
+    print()
 
 
     trainer.train()

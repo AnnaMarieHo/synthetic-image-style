@@ -37,7 +37,7 @@ classifier = PureStyleClassifier(style_dim=style_dim).to(device)
 classifier.load_state_dict(checkpoint["model"])
 classifier.eval()
 
-# Base feature names (shared constant)
+# Base feature names 
 BASE_FEATURE_NAMES = [
     "color_correlation_gb", "color_correlation_rb", "color_correlation_rg",
     "color_saturation_var", "edge_coherence", "edge_density", "freq_falloff",
@@ -86,7 +86,7 @@ for file_idx, json_path in enumerate(tqdm(files, desc="Loading JSON files", disa
 
     total_examples = len(data)
     for ex_idx, ex in enumerate(data):
-        # Check if we've reached limits for both classes
+        # Check if  limits have been reached for both classes
         if fake_count >= MAX_FAKE and real_count >= MAX_REAL:
             print(f"\nReached limits: {fake_count} fake, {real_count} real. Stopping.")
             break
@@ -95,7 +95,7 @@ for file_idx, json_path in enumerate(tqdm(files, desc="Loading JSON files", disa
         is_fake = ex.get("true_label") == "fake"
         label = 1 if is_fake else 0
         
-        # Skip if we've reached the limit for this class
+        # Skip if limit was reached for this class
         if is_fake and fake_count >= MAX_FAKE:
             continue
         if not is_fake and real_count >= MAX_REAL:
@@ -158,7 +158,7 @@ for file_idx, json_path in enumerate(tqdm(files, desc="Loading JSON files", disa
                 rate = processed_count / elapsed if elapsed > 0 else 0
                 print(f"  Processed {processed_count} images ({fake_count} fake, {real_count} real) ({rate:.1f} img/s)")
             
-            # Stop if we've reached limits for both classes
+            # Stop if limits for both classes have been reached
             if fake_count >= MAX_FAKE and real_count >= MAX_REAL:
                 break
             
@@ -175,21 +175,18 @@ y = np.array(y, dtype=np.int64)
 
 print(f"Loaded {len(X)} samples with patch-level features ({fake_count} fake, {real_count} real)")
 if len(X) == 0:
-    raise RuntimeError("No samples loaded!")
+    raise RuntimeError("No samples loaded")
 
 X_tensor = torch.tensor(X, device=device)
 
-# Model is already loaded above
-print("MLP classifier ready for feature interaction analysis.")
-
-# PASS 1 — Collect Global Frequencies
+# Collect Global Frequencies
 
 pair_freq = defaultdict(int)
 
-print("\nPASS 1: Gathering pair frequencies...\n")
+print("\nGathering pair frequencies...\n")
 pass1_start = time.time()
 
-for i in tqdm(range(len(X_tensor)), desc="PASS 1: Frequency collection", disable=not HAS_TQDM):
+for i in tqdm(range(len(X_tensor)), desc="Frequency collection", disable=not HAS_TQDM):
     x = X_tensor[i:i+1].clone().detach()
     x.requires_grad_(True)
 
@@ -211,7 +208,7 @@ for i in tqdm(range(len(X_tensor)), desc="PASS 1: Frequency collection", disable
             pair = tuple(sorted((top_idx[a], top_idx[b])))
             pair_freq[pair] += 1
 
-    # Progress update every 500 samples (only if tqdm not available)
+    # Progress update every 500 samples 
     if not HAS_TQDM and i % 500 == 0:
         elapsed = time.time() - pass1_start
         rate = (i + 1) / elapsed if elapsed > 0 else 0
@@ -225,20 +222,18 @@ pair_freq_norm = {k: v / total_samples for k, v in pair_freq.items()}
 
 # Normalize frequencies to 0–1
 pair_freq_norm_savable = {
-    # Convert tuple keys (which JSON can't handle) to string keys
+    # Convert tuple keys to string keys
     f"{k[0]}_{k[1]}": v / total_samples for k, v in pair_freq.items()
 }
 
 freq_out_path = "feature_importance/pair_freq_norm.json"
-# Ensure the directory exists if needed
-# os.makedirs(os.path.dirname(freq_out_path), exist_ok=True) 
 with open(freq_out_path, "w") as f:
     json.dump(pair_freq_norm_savable, f, indent=2)
 
 print(f"Saved global frequency map to: {freq_out_path}")
 
 pass1_elapsed = time.time() - pass1_start
-print(f"\nPASS 1 complete in {pass1_elapsed:.1f}s ({len(X_tensor)/pass1_elapsed:.1f} samples/s)\n")
+print(f"\ncomplete in {pass1_elapsed:.1f}s ({len(X_tensor)/pass1_elapsed:.1f} samples/s)\n")
 
 # Domain similarity (for coherency)
 
@@ -259,15 +254,15 @@ def domain_similarity(f1, f2):
         return 0.8
     return 0.3  # weak relation
 
-# PASS 2 — Compute interactions with coherency score
+# Compute interactions with coherency score
 
 results_fake = {}
 results_real = {}
 
-print("PASS 2: Computing coherency scores and patch information...\n")
+print("Computing coherency scores and patch information...\n")
 pass2_start = time.time()
 
-for i in tqdm(range(len(X_tensor)), desc="PASS 2: Computing interactions", disable=not HAS_TQDM):
+for i in tqdm(range(len(X_tensor)), desc="Computing interactions", disable=not HAS_TQDM):
     x = X_tensor[i:i+1].clone().detach()
     x.requires_grad_(True)
 
@@ -368,7 +363,7 @@ for i in tqdm(range(len(X_tensor)), desc="PASS 2: Computing interactions", disab
     else:  # Real
         results_real[image_ids[i]] = result_entry
 
-    # Progress update every 100 samples (only if tqdm not available)
+    # Progress update every 100 samples 
     if not HAS_TQDM and (i + 1) % 100 == 0:
         elapsed = time.time() - pass2_start
         rate = (i + 1) / elapsed if elapsed > 0 else 0
@@ -377,10 +372,8 @@ for i in tqdm(range(len(X_tensor)), desc="PASS 2: Computing interactions", disab
 
 pass2_elapsed = time.time() - pass2_start
 total_elapsed = time.time() - start_time
-print(f"\nPASS 2 complete in {pass2_elapsed:.1f}s ({len(X_tensor)/pass2_elapsed:.1f} samples/s)")
+print(f"\ncomplete in {pass2_elapsed:.1f}s ({len(X_tensor)/pass2_elapsed:.1f} samples/s)")
 print(f"Total processing time: {total_elapsed:.1f}s\n")
-
-# Save results
 
 print("Saving results...")
 

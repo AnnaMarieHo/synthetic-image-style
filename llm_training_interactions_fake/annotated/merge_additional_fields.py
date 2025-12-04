@@ -100,9 +100,9 @@ for image_id, caption_text in merged_data.items():
         mlp_missing += 1
 
 print(f"\nMerge complete!")
-print(f"  - Entries with LLM data: {merged_count}")
-print(f"  - Entries missing LLM data: {llm_missing}")
-print(f"  - Entries missing MLP data: {mlp_missing}")
+print(f"  Entries with LLM data: {merged_count}")
+print(f"  Entries missing LLM data: {llm_missing}")
+print(f"  Entries missing MLP data: {mlp_missing}")
 
 # Save merged data
 print(f"\nSaving to {output_path}...")

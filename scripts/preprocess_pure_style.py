@@ -84,7 +84,7 @@ style_patches = []
 
 print(f"  Patch size: {args.patch_size}, stride: {args.stride}, pooling: {args.pool}")
 if args.multi_stat:
-    print(f"  Multi-stat pooling enabled: 100 features (mean+std+max+min)")
+    print(f"  Multi-stat pooling: 100 features (mean+std+max+min)")
 
 for sample in tqdm(data):
     if args.compute_baseline and sample["true_label"] != "real":
@@ -119,7 +119,7 @@ for sample in tqdm(data):
         min_vec = np.min(patch_feats, axis=0)
         style_vec = np.concatenate([mean_vec, std_vec, max_vec, min_vec])[None, :]
     else:
-        # Single-statistic pooling
+        # Single-statistic pooling sucks. Really useless honestly
         if args.pool == "mean":
             style_vec = np.mean(patch_feats, axis=0, keepdims=True)
         elif args.pool == "median":

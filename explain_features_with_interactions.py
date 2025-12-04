@@ -1,11 +1,10 @@
 """
 Feature Interpreter with Interaction Analysis
 
-Uses the feature interactions (pairs/triplets) that contributed to the MLP's decision
+Uses the feature interactions (pairs) that contributed to the MLP's decision
 to generate targeted explanations.
-
-Can work with 450 samples via few-shot prompting or fine-tuning.
 """
+
 import sys
 import re
 import os
@@ -14,6 +13,7 @@ import json
 import torch
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 import matplotlib.cm as cm
 from peft import PeftModel
 import matplotlib.pyplot as plt
@@ -45,7 +45,7 @@ def load_text_llm(use_finetuned=True):
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
         tokenizer.pad_token = tokenizer.eos_token
         
-        # Load base model with quantization (matching training script)
+        # Load base model with quantization 
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.float16,
@@ -64,7 +64,7 @@ def load_text_llm(use_finetuned=True):
         model = PeftModel.from_pretrained(base_model, model_path)
         
     else:
-        print("Loading base Qwen 2.5 1.5B Instruct (with few-shot prompting)...\n")
+        print("Loading base Qwen 2.5 1.5B Instruct ...\n")
         
         model_name = "Qwen/Qwen2.5-1.5B-Instruct"
         
@@ -87,7 +87,7 @@ def load_text_llm(use_finetuned=True):
         )
     
     model.eval()
-    print("Model loaded!\n")
+    print("Model loaded\n")
     
     return model, tokenizer
 
@@ -97,7 +97,7 @@ def interpret_features_with_context(features, prob_fake, top_pairs, model, token
     """Generate explanation using gradient-computed top contributing features"""
     prediction = "FAKE" if prob_fake > 0.5 else "REAL"
     
-    # Format feature interactions as JSON string (matching training format exactly)
+    # Format feature interactions as JSON string 
     # Use top 2 pairs
     # Each pair must have: features, coherency, and values
     validated_pairs = []
@@ -126,7 +126,7 @@ def interpret_features_with_context(features, prob_fake, top_pairs, model, token
     # Format interactions as JSON string (matching training format)
     interactions_json = json.dumps({"top_pairs": validated_pairs}, indent=2, ensure_ascii=False)
     
-    # Extract individual features from pairs for top values (matching training script format)
+    # Extract individual features from pairs for top values 
     feature_scores = {}
     for pair in validated_pairs:
         for feat in pair['features']:
@@ -149,7 +149,7 @@ def interpret_features_with_context(features, prob_fake, top_pairs, model, token
         outputs = model.generate(
             **inputs,
             max_new_tokens=250,
-            do_sample=False,  # Deterministic
+            do_sample=False,  
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )
@@ -166,13 +166,13 @@ def main():
 
     if len(sys.argv) < 2:
         print("Usage: python explain_features_with_interactions.py <image_path> [--finetuned]")
-        print("  --finetuned: Use fine-tuned model (no few-shot examples needed)")
+        print("  --finetuned: Use fine-tuned model ")
         return
     
     image_path = sys.argv[1]
 
     # Use base model instead of fine-tuned
-    use_finetuned = True #"--finetuned" in sys.argv
+    use_finetuned = True 
     
     # Extract features and compute gradient-based importance
     result = extract_style_features_and_interactions(image_path, device)
@@ -184,7 +184,7 @@ def main():
 
         img_array, patch_locations, patch_feats, top_idx, importance = result[3:]
         
-        # Load classifier again for GradCAM (needed for gradient computation)
+        # Load classifier again for GradCAM 
         checkpoint = torch.load("checkpoints/pure_style_512.pt", map_location=device)
         style_dim = checkpoint.get("style_dim", 25)
 
@@ -219,7 +219,7 @@ def main():
     
 
     sentences = explanation.strip().split('\n\n')
-    extracted_sentences = sentences[0:2]
+    extracted_sentences = sentences[0:3]
 
     # Join them back together with a double newline for clean formatting
     result = '\n'.join(extracted_sentences)
@@ -231,7 +231,7 @@ def main():
     
     print("\n")
     print("TOP FEATURE PAIRS (with coherency and values):")
-    for pair in top_pairs[:2]:  # Show top 5 pairs
+    for pair in top_pairs[:2]:  # Show 2 pairs
         if 'features' in pair and 'coherency' in pair and 'values' in pair:
             print(f"  [{pair['features'][0]}, {pair['features'][1]}]")
             print(f"    coherency: {pair['coherency']:.4f}")

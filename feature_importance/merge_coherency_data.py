@@ -8,7 +8,7 @@ with open("llm_training_data/llm_training_data_fakes.json", "r", encoding="utf-8
 with open("coherency/mlp_interactions_with_coherency_fake.json", "r", encoding="utf-8") as f:
     interactions = json.load(f)
 
-# Merge step - only keep samples that have interactions
+# Merge step: only keep samples that have interactions
 merged = []
 
 for ex in samples:

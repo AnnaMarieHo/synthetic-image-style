@@ -45,7 +45,6 @@ def main():
     print(f"Architecture: 100% content-agnostic (NO CLIP)")
     
     print(f"\nAnalyzing image: {image_path}")
-    print("-" * 50)
     
     img = Image.open(image_path).convert("RGB")
     img_array = np.array(img)
@@ -57,7 +56,7 @@ def main():
     
     patches = extract_patches(img_array, patch_size, stride)
     
-    # Extract features with normalization (using hard-coded constants)
+    # Extract features with normalization 
     patch_feats = [style_extractor(p, normalize=True) for p in patches]
     patch_feats = np.stack(patch_feats, axis=0)
     
@@ -65,7 +64,7 @@ def main():
     expected_dim = style_dim
     use_multi_stat = (expected_dim == 100)  # 25 * 4
     
-    # Pool patches (same as training)
+    # Pool patches 
     if use_multi_stat:
         mean_vec = np.mean(patch_feats, axis=0)
         std_vec = np.std(patch_feats, axis=0)

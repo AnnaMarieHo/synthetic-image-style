@@ -9,7 +9,6 @@ import numpy as np
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 dataset = PureStyleDataset("openfake-annotation/datasets/combined/cache/pure_style_embeddings_cifake.npz")
-# dataset = PureStyleDataset("evaluate/pure_style_embeddings.npz")
 
 style_dim = dataset.style.shape[1]
 print(f"Style dimension: {style_dim}")

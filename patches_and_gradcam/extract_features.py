@@ -165,14 +165,14 @@ def extract_style_features_and_interactions(image_path, device):
             name1 = feature_names[i1]
             name2 = feature_names[i2]
 
-            # 1. Magnitude Score Calculation 
+            # Magnitude Score Calculation 
             mag = importance[i1] * importance[i2]
             mag_score = abs(mag) / (abs(mag) + 1e-6)
 
-            # 2. Domain Score Calculation
+            # Domain Score Calculation
             dom_score = domain_similarity(name1, name2)
 
-            # 3. Frequency Score Calculation 
+            # Frequency Score Calculation 
             # Create a standardized key for lookup (index sorted)
             key_tuple = tuple(sorted((i1, i2)))
             key_str = f"{key_tuple[0]}_{key_tuple[1]}"
@@ -180,7 +180,7 @@ def extract_style_features_and_interactions(image_path, device):
             # Look up frequency score, default to 0 if pair was never seen in training
             freq_score = GLOBAL_PAIR_FREQ.get(key_str, 0.0)
 
-            # 4. Final Full Bounded Coherency
+            # Final Full Bounded Coherency
             coherency = freq_score * dom_score * mag_score
 
             # Append result to pair_scores

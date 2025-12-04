@@ -250,7 +250,6 @@ def get_inference_prompt(prob_fake, interactions_json):
 
 Task: Write 2-3 sentences in sentence format interpreting these image-style feature interactions. 
 Rules: 
-- Begin your response with a <START> tag. 
 - Focus on the NUMERICAL VALUES and their relationships 
 - Feature values are z-scores
 - A negative value means the feature is below the dataset mean.
@@ -262,7 +261,7 @@ INTERACTING FEATURES (Raw Data):
 {interactions_json}
 
 - Sentence 1 (Strongest Interaction): Use the Top Pair information above. Reference the exact coherency score and calculated strength.
-- Sentence 3 (Secondary Interaction): If a second pair exists, reference Reference the exact coherency score, magnitude, and strength.
+- Sentence 2 (Secondary Interaction): Identify the second pair, reference Reference the exact coherency score, magnitude, and strength.
 
 RELATIVE DIFFERENCE RULE:
 - Calculate the percentage difference between the two absolute feature values.
@@ -302,8 +301,5 @@ Rules:
  
 INTERACTING FEATURES (Raw Data):
 {interactions_json}
-
-- Sentence 1 (Strongest Interaction): Use the Top Pair information above. Reference the exact coherency score and calculated strength.
-- Sentence 3 (Secondary Interaction): If a second pair exists, reference Reference the exact coherency score, magnitude, and strength.
 
 Explanation:"""
