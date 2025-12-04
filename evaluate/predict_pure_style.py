@@ -19,6 +19,18 @@ def extract_patches(image: np.ndarray, patch_size: int, stride: int):
         patches.append(cv2.resize(image, (patch_size, patch_size)))  # fallback for small imgs
     return patches
 
+def extract_patches(image: np.ndarray, patch_size: int, stride: int):
+    """Return list of patches from an image as numpy arrays."""
+    h, w = image.shape[:2]
+    patches = []
+    for y in range(0, h - patch_size + 1, stride):
+        for x in range(0, w - patch_size + 1, stride):
+            patch = image[y:y + patch_size, x:x + patch_size]
+            patches.append(patch)
+    if not patches:
+        patches.append(cv2.resize(image, (patch_size, patch_size)))  # fallback for small imgs
+    return patches
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python evaluate/predict_pure_style.py <image_path>")
