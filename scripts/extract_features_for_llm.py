@@ -2,8 +2,8 @@
 Extract style features + predictions for LLM training data generation.
 
 Uses:
-1. PureStyleExtractor to extract 25 deterministic style features
-2. pure_style.pt (trained on 9966 fake + 9966 real unfiltered) and predicts fake/real
+1. PureStyleExtractor to extract 25 style features
+2. pure_style.pt (trained on 9966 fake + 9966 real) and predicts fake/real
 
 Output: JSON with features + predictions for all fake_balanced_filtered images
 """
@@ -64,15 +64,13 @@ class PureStyleClassifier(nn.Module):
 
 def main():
     # Configuration
-    # metadata_path = "openfake-annotation/datasets/fake_balanced_filtered/metadata.json"
     metadata_path = "openfake-annotation/datasets/combined/metadata.json"
     checkpoint_path = "checkpoints/pure_style.pt"
-    output_path = "openfake-annotation/datasets/combined/llm_training_data.jsonl"
+    output_path = "openfake-annotation/datasets/combined/llm_training_data_real.jsonl"
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
-    print("="*60)
-    print("="*60)
+
     print(f"Device: {device}")
     print(f"Metadata: {metadata_path}")
     print(f"Model checkpoint: {checkpoint_path}")
@@ -85,7 +83,6 @@ def main():
     
     print(f"Loaded {len(metadata)} images from metadata")
     
-    # Load style extractor (deterministic, no training)
     style_extractor = PureStyleExtractor(device)
     feature_names = style_extractor.get_feature_names()
     print(f"Initialized PureStyleExtractor ({len(feature_names)} features)")
@@ -123,16 +120,13 @@ def main():
                 
                 # Try multiple resolution strategies
                 if not image_path.exists():
-                    # Strategy 1: Prepend openfake-annotation to the path
                     image_path = Path("openfake-annotation") / image_rel_path
                 
                 if not image_path.exists():
-                    # Strategy 2: Replace 'datasets' prefix with 'openfake-annotation/datasets'
                     if image_rel_path.startswith("datasets"):
                         image_path = Path("openfake-annotation") / image_rel_path
                 
                 if not image_path.exists():
-                    # Strategy 3: Look in metadata parent's images folder
                     image_path = Path(metadata_path).parent / "images" / Path(image_rel_path).name
                 
                 if not image_path.exists():
@@ -144,7 +138,6 @@ def main():
                 img_array = np.array(img)
                 
                 # Extract patches and compute 100 features (multi-stat pooling)
-                # This matches the training procedure in preprocess_pure_style.py with --multi-stat
                 patch_size = 512
                 stride = 512
                 patches = extract_patches(img_array, patch_size, stride)
@@ -199,9 +192,9 @@ def main():
                     "style_features_vector": style_vec.tolist(),
                 }
                 
-                # Write to file immediately (JSONL format - one JSON object per line)
+                # Write to file immediately 
                 output_file.write(json.dumps(training_example, ensure_ascii=False) + "\n")
-                output_file.flush()  # Ensure it's written to disk
+                output_file.flush()  # Ensure it's written
                 
                 # Update statistics
                 num_processed += 1
@@ -218,9 +211,7 @@ def main():
     
     # Summary
     print()
-    print("="*60)
     print("RESULTS")
-    print("="*60)
     print(f"Successfully processed: {num_processed}/{len(metadata)} images")
     
     if errors:
@@ -238,9 +229,7 @@ def main():
     # Show example by reading first line
     if num_processed > 0:
         print()
-        print("="*60)
         print("EXAMPLE ENTRY (first processed image)")
-        print("="*60)
         with open(output_path, "r", encoding="utf-8") as f:
             example = json.loads(f.readline())
         print(f"Image: {example['image_id']}")
@@ -251,12 +240,10 @@ def main():
         for i, (name, value) in enumerate(list(example['style_features'].items())[:5]):
             print(f"  {i+1}. {name}: {value:.4f}")
         print(f"  ... ({len(example['style_features']) - 5} more features)")
-        print("="*60)
-    
+      
     # Stats
     print()
     print("PREDICTION STATISTICS")
-    print("="*60)
     print(f"Predicted as real: {predictions_count['real']}")
     print(f"Predicted as fake: {predictions_count['fake']}")
     print(f"\nTrue labels:")
@@ -275,12 +262,8 @@ def main():
     print(f"\nAccuracy on this subset: {accuracy:.1%}")
     
     print()
-    print("="*60)
     print("READY FOR LLM TRAINING")
-    print("="*60)
     print(f"Data format: JSONL (one JSON object per line)")
-    print(f"To convert to standard JSON array, run:")
-    print(f"  python -c \"import json; data=[json.loads(l) for l in open('{output_path}')]; json.dump(data, open('{output_path.replace('.jsonl', '.json')}', 'w'), indent=2)\"")
     print()
 
 

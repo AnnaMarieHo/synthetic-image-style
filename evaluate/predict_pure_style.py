@@ -5,27 +5,19 @@ import numpy as np
 import cv2
 from models.style_extractor_pure import PureStyleExtractor
 import torch.nn as nn
+from models.mlp_classifier import PureStyleClassifier
 
-class PureStyleClassifier(nn.Module):
-    def __init__(self, style_dim=25, hidden_dim=128):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(style_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(hidden_dim, 64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, 1)
-        )
-    
-    def forward(self, style_features):
-        return self.net(style_features)
+def extract_patches(image: np.ndarray, patch_size: int, stride: int):
+    """Return list of patches from an image as numpy arrays."""
+    h, w = image.shape[:2]
+    patches = []
+    for y in range(0, h - patch_size + 1, stride):
+        for x in range(0, w - patch_size + 1, stride):
+            patch = image[y:y + patch_size, x:x + patch_size]
+            patches.append(patch)
+    if not patches:
+        patches.append(cv2.resize(image, (patch_size, patch_size)))  # fallback for small imgs
+    return patches
 
 def extract_patches(image: np.ndarray, patch_size: int, stride: int):
     """Return list of patches from an image as numpy arrays."""
@@ -45,7 +37,7 @@ def main():
         return
     
     image_path = sys.argv[1]
-    checkpoint_path = "checkpoints/pure_style.pt"
+    checkpoint_path = "checkpoints/pure_style_cifake.pt"
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
@@ -65,7 +57,6 @@ def main():
     print(f"Architecture: 100% content-agnostic (NO CLIP)")
     
     print(f"\nAnalyzing image: {image_path}")
-    print("-" * 50)
     
     img = Image.open(image_path).convert("RGB")
     img_array = np.array(img)
@@ -77,7 +68,7 @@ def main():
     
     patches = extract_patches(img_array, patch_size, stride)
     
-    # Extract features with normalization (using hard-coded constants)
+    # Extract features with normalization 
     patch_feats = [style_extractor(p, normalize=True) for p in patches]
     patch_feats = np.stack(patch_feats, axis=0)
     
@@ -85,7 +76,7 @@ def main():
     expected_dim = style_dim
     use_multi_stat = (expected_dim == 100)  # 25 * 4
     
-    # Pool patches (same as training)
+    # Pool patches 
     if use_multi_stat:
         mean_vec = np.mean(patch_feats, axis=0)
         std_vec = np.std(patch_feats, axis=0)

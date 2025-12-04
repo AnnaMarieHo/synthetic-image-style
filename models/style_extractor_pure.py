@@ -167,7 +167,7 @@ class PureStyleExtractor:
 
         return feature_vector.astype(np.float32)
     def _normalize_features(self, features):
-        # Use robust hand-tuned constants that generalize across splits
+        # Use hand-tuned constants that generalize across splits (attempting to increase rbustness due to overfitting normalization in the datasets)
         feature_means = np.array([
             0.9, 0.9, 0.9, 8000, 0.5, 0.2, 7e7, 100, 0.5, 400, 0.5, 0.5,
             80, 1.5, 50, 15e6, 0.0, 0.0, 1.5, 10e6, 8, 1500, 0.5, 2000, -5

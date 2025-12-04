@@ -16,12 +16,12 @@ def parse_args():
         default="openfake-annotation/datasets/combined/metadata.json",
         help="Path to input metadata JSON (relative to data root or absolute)")
     parser.add_argument("--out-path", "--out_path", dest="out_path", type=str,
-        default="openfake-annotation/datasets/combined/cache/pure_style_embeddings.npz",
+        default="openfake-annotation/datasets/combined/cache/512_style_embeddings.npz",
         help="Output .npz path (relative to data root or absolute)")
     parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"],
         help="Device for style extractor")
-    parser.add_argument("--patch-size", type=int, default=256, help="Patch size in pixels")
-    parser.add_argument("--stride", type=int, default=256, help="Stride for patch extraction")
+    parser.add_argument("--patch-size", type=int, default=512, help="Patch size in pixels")
+    parser.add_argument("--stride", type=int, default=512, help="Stride for patch extraction")
     parser.add_argument("--pool", type=str, default="mean", choices=["mean", "median", "max"],
         help="Pooling method for patch-level features")
     parser.add_argument("--multi-stat", action="store_true",
@@ -84,7 +84,7 @@ style_patches = []
 
 print(f"  Patch size: {args.patch_size}, stride: {args.stride}, pooling: {args.pool}")
 if args.multi_stat:
-    print(f"  Multi-stat pooling enabled: 100 features (mean+std+max+min)")
+    print(f"  Multi-stat pooling: 100 features (mean+std+max+min)")
 
 for sample in tqdm(data):
     if args.compute_baseline and sample["true_label"] != "real":
@@ -119,7 +119,7 @@ for sample in tqdm(data):
         min_vec = np.min(patch_feats, axis=0)
         style_vec = np.concatenate([mean_vec, std_vec, max_vec, min_vec])[None, :]
     else:
-        # Single-statistic pooling
+        # Single-statistic pooling sucks. Really useless honestly
         if args.pool == "mean":
             style_vec = np.mean(patch_feats, axis=0, keepdims=True)
         elif args.pool == "median":
