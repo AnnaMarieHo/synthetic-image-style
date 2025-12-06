@@ -8,7 +8,7 @@ import numpy as np
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-dataset = PureStyleDataset("openfake-annotation/datasets/combined/cache/pure_style_embeddings_cifake.npz")
+dataset = PureStyleDataset("openfake-annotation/datasets/combined/cache/pure_style_embeddings.npz")
 
 style_dim = dataset.style.shape[1]
 print(f"Style dimension: {style_dim}")
@@ -127,6 +127,6 @@ for epoch in range(30):
     else:
         print()
 
-print(f"\nSaved to checkpoints/pure_style_cifake.pt")
+print(f"\nSaved to checkpoints/pure_style.pt")
 print(f"Best AUC: {best_auc:.4f}")
 

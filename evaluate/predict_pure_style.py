@@ -37,7 +37,7 @@ def main():
         return
     
     image_path = sys.argv[1]
-    checkpoint_path = "checkpoints/pure_style_cifake.pt"
+    checkpoint_path = "checkpoints/pure_style_512.pt"
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
@@ -54,7 +54,7 @@ def main():
     model.eval()
     
     print(f"Style dimension: {style_dim} technical features")
-    print(f"Architecture: 100% content-agnostic (NO CLIP)")
+    
     
     print(f"\nAnalyzing image: {image_path}")
     
@@ -109,13 +109,7 @@ def main():
     print(f"\nDetailed Probabilities:")
     print(f"   Real: {prob_real:.2%}")
     print(f"   Fake: {prob_fake:.2%}")
-    print(f"\nDetection Method: Pure artifact analysis")
-    print(f"  - Frequency domain patterns")
-    print(f"  - Noise characteristics")
-    print(f"  - Texture anomalies")
-    print(f"  - Edge inconsistencies")
-    print(f"  - Color correlations")
-    print()
+
 
 if __name__ == "__main__":
     main()
