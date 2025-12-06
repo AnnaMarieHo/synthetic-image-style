@@ -34,7 +34,7 @@ fake_count = 0
 
 
 for i, sample in enumerate(tqdm(dataset)):
-    # Stop if we have enough fakes
+    # Stop if there arent enough fakes
     if fake_count >= args.num_fakes:
         break
     
@@ -76,9 +76,7 @@ for i, sample in enumerate(tqdm(dataset)):
 metadata_path = os.path.join(args.out_dir, "metadata.json")
 pd.DataFrame(records_fake).to_json(metadata_path, orient="records", indent=2)
 
-print(f"\n{'='*60}")
 print(f"Successfully downloaded {len(records_fake)} fake samples")
 print(f"Output directory: {args.out_dir}")
 print(f"Metadata: {metadata_path}")
-print(f"{'='*60}")
 

@@ -1,7 +1,6 @@
 import json
 import os
 
-# Path to your directory
 directory = "./"
 
 # Collect all JSON file paths (sorted for consistency)
