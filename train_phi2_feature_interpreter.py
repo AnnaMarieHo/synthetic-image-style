@@ -22,8 +22,6 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from transformers import BitsAndBytesConfig
 from patches_and_gradcam.prompts import get_training_prompt
 
-#  using only Perplexity (PPL) for evaluation
-
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
