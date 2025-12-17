@@ -1,0 +1,60 @@
+[
+  {
+    "image_id": "00000",
+    "image_path": "openfake-annotation\\datasets\\unfiltered_fakes\\images\\00000.jpg",
+    "caption": "A photograph captures a tense scene where barricades set ablaze by protesters are shown in front of a building, with no visible individuals in the frame.",
+    "true_label": "fake",
+    "similarity": 0.0,
+    "prediction": "fake",
+    "confidence": 0.8142190874,
+    "prob_real": 0.1857809126,
+    "prob_fake": 0.8142190874,
+    "logit": -1.4776613712,
+    "feature_interactions": {
+      "top_pairs": [
+        {
+          "features": ["spectral_entropy_min", "freq_falloff_mean"],
+          "coherency": 0.6227989792823792,
+          "values": [1.010741949081421, 1.0132794380187988]
+        },
+        {
+          "features": ["color_correlation_rg_max", "spectral_entropy_min"],
+          "coherency": 0.2416498363018036,
+          "values": [-2.0848610401153564, 1.010741949081421]
+        },
+        {
+          "features": ["spectral_entropy_min", "noise_local_var_std"],
+          "coherency": 0.21869982779026031,
+          "values": [1.010741949081421, -2.3314049243927]
+        },
+        {
+          "features": ["color_correlation_rg_max", "noise_local_var_std"],
+          "coherency": 0.21569983661174774,
+          "values": [-2.0848610401153564, -2.3314049243927]
+        },
+        {
+          "features": ["color_correlation_rg_max", "high_freq_energy_mean"],
+          "coherency": 0.20819981396198273,
+          "values": [-2.0848610401153564, -1.8383170366287231]
+        }
+      ],
+      "patch_info": {
+        "patch_importance": [1.0, 0.9243263602256775],
+        "important_regions": {
+          "high": [
+            {
+              "location": "middle-left",
+              "importance": 1.0
+            },
+            {
+              "location": "middle-right",
+              "importance": 0.9243263602256775
+            }
+          ],
+          "medium_high": [],
+          "medium_low": []
+        }
+      }
+    }
+  }
+]
