@@ -1,10 +1,3 @@
-"""
-Feature Interpreter with Interaction Analysis
-
-Uses the feature interactions (pairs) that contributed to the MLP's decision
-to generate targeted explanations.
-"""
-
 import sys
 import re
 import os
@@ -22,6 +15,8 @@ from models.mlp_classifier import PureStyleClassifier
 from patches_and_gradcam.prompts import get_inference_prompt
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from patches_and_gradcam.extract_features import extract_style_features_and_interactions, load_pair_frequencies
+from utils.model_utils import load_classifier
+from utils.config_loader import Config, get_device, ensure_multi_stat
 from patches_and_gradcam.patch_importance import (
     compute_patch_gradcam,
     save_gradcam_visualization,
@@ -30,17 +25,17 @@ from patches_and_gradcam.patch_importance import (
     get_important_patch_locations
 )
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = get_device()
 
 
 def load_text_llm(use_finetuned=True):
     """Load a text-only LLM (Qwen 2.5 1.5B Instruct or fine-tuned Qwen)"""
     if use_finetuned:
         print("Loading FINE-TUNED Qwen 2.5 1.5B Instruct (Feature Interpreter)...\n")
-        # Load with PEFT for LoRA weights
-
-        model_path = "trained_qwen2.5_1.5b_feature_interpreter/model"
-        tokenizer_path = "trained_qwen2.5_1.5b_feature_interpreter/tokenizer"
+        
+        model_path = Config.lora_adapter()
+        tokenizer_path = Config.lora_tokenizer()
+        base_model_name = Config.llm_base_model()
         
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
         tokenizer.pad_token = tokenizer.eos_token
@@ -54,7 +49,7 @@ def load_text_llm(use_finetuned=True):
         )
         
         base_model = AutoModelForCausalLM.from_pretrained(
-            "Qwen/Qwen2.5-1.5B-Instruct",
+            base_model_name,
             quantization_config=bnb_config,
             device_map="auto",
             trust_remote_code=True
@@ -66,7 +61,7 @@ def load_text_llm(use_finetuned=True):
     else:
         print("Loading base Qwen 2.5 1.5B Instruct ...\n")
         
-        model_name = "Qwen/Qwen2.5-1.5B-Instruct"
+        model_name = Config.llm_base_model()
         
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         tokenizer.pad_token = tokenizer.eos_token
@@ -161,6 +156,17 @@ def interpret_features_with_context(features, prob_fake, top_pairs, model, token
 
 
 def main():
+    """
+    Feature Interpreter with Interaction Analysis
+    
+    Uses the feature interactions (pairs) that contributed to the MLP's decision
+    to generate targeted explanations.
+    """
+    ensure_multi_stat()
+    
+    # Get config values
+    checkpoint_path = Config.checkpoint()
+    patch_size = Config.patch_size()
 
     GLOBAL_PAIR_FREQ = load_pair_frequencies()
 
@@ -184,13 +190,8 @@ def main():
 
         img_array, patch_locations, patch_feats, top_idx, importance = result[3:]
         
-        # Load classifier again for GradCAM 
-        checkpoint = torch.load("checkpoints/pure_style_512.pt", map_location=device)
-        style_dim = checkpoint.get("style_dim", 25)
-
-        classifier = PureStyleClassifier(style_dim=style_dim).to(device)
-        classifier.load_state_dict(checkpoint["model"])
-        classifier.eval()
+        # Load classifier using utility function for GradCAM
+        classifier, style_dim = load_classifier(checkpoint_path, device)
         
         # Compute GradCAM
         patch_importance = compute_patch_gradcam(
@@ -199,12 +200,12 @@ def main():
         
         # Get important patch locations
         patch_locations_info = get_important_patch_locations(
-            patch_locations, patch_importance, img_array.shape, patch_size=512
+            patch_locations, patch_importance, img_array.shape, patch_size=patch_size
         )
         
         # Create visualization
         overlay, heatmap = create_gradcam_heatmap(
-            img_array, patch_locations, patch_importance, patch_size=512, stride=512
+            img_array, patch_locations, patch_importance, patch_size=patch_size, stride=patch_size
         )
         
         # Save visualization
@@ -221,7 +222,7 @@ def main():
     sentences = explanation.strip().split('\n\n')
     extracted_sentences = sentences[0:3]
 
-    # Join them back together with a double newline for clean formatting
+    # Join back together with a double newline for clean formatting
     result = '\n'.join(extracted_sentences)
 
     print("FEATURE-BASED EXPLANATION")

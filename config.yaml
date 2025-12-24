@@ -1,0 +1,111 @@
+# Deepfake Detection Pipeline Configuration
+# All configuration values for the entire pipeline
+
+# Model Configuration
+model:
+  # Feature extraction settings
+  style_dim: 100 # Always use 100D multi-stat pooling (mean+std+max+min)
+  base_features: 25 # Number of base features per patch
+  normalize: true # Always normalize features
+
+  # Patch extraction settings
+  patch_size: 512
+  stride: 512 # Non-overlapping patches
+
+  # MLP classifier architecture
+  hidden_dim: 128
+  dropout_rates: [0.4, 0.4, 0.3]
+
+  # Checkpoint path
+  checkpoint: "checkpoints/pure_style_512.pt"
+
+# Training Configuration
+training:
+  # Data split
+  train_ratio: 0.8
+  val_ratio: 0.2
+
+  # Balanced sampling
+  max_samples_per_class: 10000
+  batch_size: 128
+
+  # Optimization
+  learning_rate: 0.001
+  weight_decay: 0.01
+  epochs: 30
+  gradient_clip: 1.0
+
+  # Device
+  device: "auto" # auto, cuda, or cpu
+
+# LLM Configuration
+llm:
+  # Base model
+  base_model: "Qwen/Qwen2.5-1.5B-Instruct"
+  caption_model: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+
+  # LoRA adapter
+  lora_adapter: "trained_qwen2.5_1.5b_feature_interpreter/model"
+  lora_tokenizer: "trained_qwen2.5_1.5b_feature_interpreter/tokenizer"
+
+  # LoRA training hyperparameters
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+
+  # Fine-tuning
+  max_train_samples: 900 # Per class (fake/real)
+  train_epochs: 3
+  train_batch_size: 2
+  gradient_accumulation: 8
+  learning_rate: 0.0002
+  max_sequence_length: 768
+
+# Data Paths
+paths:
+  # Dataset paths
+  dataset_root: "openfake-annotation/datasets/combined"
+  metadata: "openfake-annotation/datasets/combined/metadata.json"
+  embeddings_cache: "openfake-annotation/datasets/combined/cache/pure_style_embeddings.npz"
+
+  # Feature importance paths
+  feature_importance_dir: "feature_importance"
+  pair_frequencies: "feature_importance/pair_freq_norm.json"
+  coherency_fake: "feature_importance/coherency/mlp_interactions_with_coherency_fake.json"
+  coherency_real: "feature_importance/coherency/mlp_interactions_with_coherency_real.json"
+
+  # LLM training data
+  llm_training_fake: "feature_importance/llm_training_data/llm_training_interactions_fakes.json"
+  llm_training_real: "feature_importance/llm_training_data/llm_training_interactions_real.json"
+  merged_metadata_fake: "LoRA_train_captions/merged_metadata_fake.json"
+  merged_metadata_real: "LoRA_train_captions/merged_metadata_real.json"
+
+# Feature Interaction Configuration
+feature_interaction:
+  # Gradient-based importance
+  top_features: 10 # Number of top features to consider for interactions
+  top_pairs: 5 # Number of top feature pairs to report
+
+  # Coherency scoring weights
+  frequency_weight: 1.0
+  domain_weight: 1.0
+  magnitude_weight: 1.0
+
+  # Patch importance thresholds
+  high_importance_threshold: 0.7
+  medium_high_threshold: 0.4
+  medium_low_threshold: 0.2
+
+# Processing Limits
+limits:
+  max_fake_samples: 1000 # For feature interaction computation
+  max_real_samples: 1000 # For feature interaction computation
+  checkpoint_interval: 10 # Save checkpoint every N samples
+
+# Logging
+logging:
+  level: "INFO" # DEBUG, INFO, WARNING, ERROR
+  log_dir: "logs"
+
+# Random Seeds (for reproducibility)
+random_seed: 42

@@ -122,11 +122,11 @@ for epoch in range(30):
         torch.save({
             "model": model.state_dict(),
             "style_dim": style_dim,
-        }, "checkpoints/pure_style_cifake.pt")
+        }, "checkpoints/pure_style_512.pt")
         print(" Best!")
     else:
         print()
 
-print(f"\nSaved to checkpoints/pure_style.pt")
+print(f"\nSaved to checkpoints/pure_style_512.pt")
 print(f"Best AUC: {best_auc:.4f}")
 
