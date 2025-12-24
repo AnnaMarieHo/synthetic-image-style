@@ -7,7 +7,10 @@ from PIL import Image
 from collections import defaultdict
 from models.mlp_classifier import PureStyleClassifier
 from models.style_extractor_pure import PureStyleExtractor
-from patches_and_gradcam.extract_features import extract_patches, aggregate_patch_features
+from utils.patch_utils import extract_patches, aggregate_patch_features
+from utils.feature_utils import build_feature_names, compute_domain_similarity
+from utils.model_utils import load_classifier
+from utils.config_loader import Config, get_device, ensure_multi_stat
 from patches_and_gradcam.patch_importance import compute_patch_gradcam, get_important_patch_locations
 
 try:
@@ -19,46 +22,40 @@ except ImportError:
     def tqdm(iterable, desc="", total=None):
         return iterable
 
-# Load JSON samples and extract patch-level features
+ensure_multi_stat()
 
+# Get configuration values
+device = get_device()
+checkpoint_path = Config.checkpoint()
+patch_size = Config.patch_size()
+stride = Config.stride()
+MAX_FAKE = Config.max_fake_samples()
+MAX_REAL = Config.max_real_samples()
+top_features_count = Config.top_features()
+
+print(f"Configuration:")
+print(f"  Device: {device}")
+print(f"  Checkpoint: {checkpoint_path}")
+print(f"  Patch size: {patch_size}, Stride: {stride}")
+print(f"  Max samples: {MAX_FAKE} fake, {MAX_REAL} real")
+print(f"  Multi-stat pooling: ENABLED (100D only)")
+print()
+
+# Load JSON samples and extract patch-level features
 files = glob.glob("feature_importance/*.json")
 print("Found:", len(files), "json files.")
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# Load classifier and determine style_dim
+classifier, style_dim = load_classifier(checkpoint_path, device)
 
-# Load checkpoint to determine style_dim
-checkpoint = torch.load("checkpoints/pure_style_512.pt", map_location=device)
-style_dim = checkpoint.get("style_dim", 25)
-use_multi_stat = (style_dim == 100)
-
-# Initialize style extractor and classifier
+# Initialize style extractor
 style_extractor = PureStyleExtractor(device)
-classifier = PureStyleClassifier(style_dim=style_dim).to(device)
-classifier.load_state_dict(checkpoint["model"])
-classifier.eval()
 
-# Base feature names 
-BASE_FEATURE_NAMES = [
-    "color_correlation_gb", "color_correlation_rb", "color_correlation_rg",
-    "color_saturation_var", "edge_coherence", "edge_density", "freq_falloff",
-    "glcm_contrast_1", "glcm_contrast_3", "glcm_contrast_5", "glcm_energy_1",
-    "glcm_homogeneity_1", "gradient_mean", "gradient_skewness", "gradient_std",
-    "high_freq_energy", "lab_a_skewness", "lab_b_skewness", "lbp_entropy",
-    "mid_freq_energy", "noise_kurtosis", "noise_local_var", "noise_skewness",
-    "noise_variance", "spectral_entropy"
-]
-
-def build_feature_names(style_dim):
-    """Build full feature names from base names"""
-    if style_dim == 100:
-        feature_names = []
-        for base in BASE_FEATURE_NAMES:
-            feature_names.extend([f"{base}_mean", f"{base}_std", f"{base}_max", f"{base}_min"])
-        return feature_names
-    else:
-        return BASE_FEATURE_NAMES
-
+# Build feature names (should always be 100 for multi-stat)
 feature_names = build_feature_names(style_dim)
+
+if style_dim != 100:
+    raise ValueError(f"Expected style_dim=100 (multi-stat), got {style_dim}. Check config.yaml and checkpoint.")
 
 X = []
 y = []
@@ -73,8 +70,6 @@ processed_count = 0
 fake_count = 0
 real_count = 0
 start_time = time.time()
-MAX_FAKE = 1000  # Limit to 1000 fake images
-MAX_REAL = 1000  # Limit to 1000 real images
 
 for file_idx, json_path in enumerate(tqdm(files, desc="Loading JSON files", disable=not HAS_TQDM)):
     with open(json_path, "r", encoding="utf-8") as jf:
@@ -127,15 +122,15 @@ for file_idx, json_path in enumerate(tqdm(files, desc="Loading JSON files", disa
             img = Image.open(image_path).convert("RGB")
             img_array = np.array(img)
             
-            # Extract patches (512x512, stride 512 to match training)
-            patches, patch_locations = extract_patches(img_array, 512, 512)
+            # Extract patches using config values
+            patches, patch_locations = extract_patches(img_array, patch_size, stride)
             
-            # Extract features for each patch
+            # Extract features for each patch (ALWAYS normalized)
             patch_feats = [style_extractor(p, normalize=True) for p in patches]
             patch_feats = np.stack(patch_feats, axis=0)
             
-            # Aggregate to image-level features (same as training)
-            style_vec = aggregate_patch_features(patch_feats, use_multi_stat=use_multi_stat)
+            # Aggregate to image-level features (ALWAYS multi-stat)
+            style_vec = aggregate_patch_features(patch_feats, use_multi_stat=True)
             
             X.append(style_vec)
             y.append(label)
@@ -199,8 +194,8 @@ for i in tqdm(range(len(X_tensor)), desc="Frequency collection", disable=not HAS
     grads = x.grad.detach()[0]
     importance = (grads * x[0]).abs().detach().cpu().numpy()
 
-    # Top features
-    top_idx = np.argsort(-importance)[:10]
+    # Top features (from config)
+    top_idx = np.argsort(-importance)[:top_features_count]
 
     # Count pairs
     for a in range(len(top_idx)):
@@ -235,24 +230,7 @@ print(f"Saved global frequency map to: {freq_out_path}")
 pass1_elapsed = time.time() - pass1_start
 print(f"\ncomplete in {pass1_elapsed:.1f}s ({len(X_tensor)/pass1_elapsed:.1f} samples/s)\n")
 
-# Domain similarity (for coherency)
-
-def domain(feature_name):
-    return feature_name.split("_")[0]
-
-def domain_similarity(f1, f2):
-    d1 = domain(f1)
-    d2 = domain(f2)
-
-    if d1 == d2:
-        return 1.0
-    if (d1, d2) in [
-        ("glcm", "mid"), ("mid", "glcm"),
-        ("glcm", "freq"), ("freq", "glcm"),
-        ("spectral", "freq"), ("freq", "spectral")
-    ]:
-        return 0.8
-    return 0.3  # weak relation
+# Domain similarity is now imported from utils.feature_utils
 
 # Compute interactions with coherency score
 
@@ -286,7 +264,7 @@ for i in tqdm(range(len(X_tensor)), desc="Computing interactions", disable=not H
             key = tuple(sorted((i1, i2)))
 
             freq_score = pair_freq_norm.get(key, 0)
-            dom_score = domain_similarity(feature_names[i1], feature_names[i2])
+            dom_score = compute_domain_similarity(feature_names[i1], feature_names[i2])
 
             mag = importance[i1] * importance[i2]
             mag_score = abs(mag) / (abs(mag) + 1e-6)
@@ -321,7 +299,7 @@ for i in tqdm(range(len(X_tensor)), desc="Computing interactions", disable=not H
         
         # Get important patch locations
         patch_locations_info = get_important_patch_locations(
-            patch_locations, patch_importance, img_shape, patch_size=512
+            patch_locations, patch_importance, img_shape, patch_size=patch_size
         )
         
         # Format patch locations for output

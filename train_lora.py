@@ -138,10 +138,10 @@ class FeatureInteractionDataset(Dataset):
             sample_json = json.loads(sample['interactions_json'])
             first_pair = sample_json['top_pairs'][0] if sample_json['top_pairs'] else {}
             print(f"Sample verification - First pair contains:")
-            print(f"  - features: {'✓' if 'features' in first_pair else '✗'}")
-            print(f"  - coherency: {'✓' if 'coherency' in first_pair else '✗'}")
-            print(f"  - values: {'✓' if 'values' in first_pair else '✗'}")
-            print(f"  - caption: {'✓' if sample.get('caption') else '✗'}")
+            print(f"  - features: {'true' if 'features' in first_pair else 'false'}")
+            print(f"  - coherency: {'true' if 'coherency' in first_pair else 'false'}")
+            print(f"  - values: {'true' if 'values' in first_pair else 'false'}")
+            print(f"  - caption: {'true' if sample.get('caption') else 'false'}")
         print()
     
     def __len__(self):
@@ -408,3 +408,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

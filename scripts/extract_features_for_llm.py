@@ -1,13 +1,3 @@
-"""
-Extract style features + predictions for LLM training data generation.
-
-Uses:
-1. PureStyleExtractor to extract 25 style features
-2. pure_style.pt (trained on 9966 fake + 9966 real) and predicts fake/real
-
-Output: JSON with features + predictions for all fake_balanced_filtered images
-"""
-
 import torch
 import json
 import numpy as np
@@ -21,60 +11,43 @@ import cv2
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from models.mlp_classifier import PureStyleClassifier
 from models.style_extractor_pure import PureStyleExtractor
-import torch.nn as nn
-
-
-def extract_patches(image: np.ndarray, patch_size: int, stride: int):
-    """Extract patches from an image. Returns list of patches as numpy arrays."""
-    h, w = image.shape[:2]
-    patches = []
-    for y in range(0, h - patch_size + 1, stride):
-        for x in range(0, w - patch_size + 1, stride):
-            patch = image[y:y + patch_size, x:x + patch_size]
-            patches.append(patch)
-    if not patches:
-        # Fallback for small images
-        patches.append(cv2.resize(image, (patch_size, patch_size)))
-    return patches
-
-
-class PureStyleClassifier(nn.Module):
-    """Same architecture as training script"""
-    def __init__(self, style_dim=25, hidden_dim=128):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(style_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.4),
-            nn.Linear(hidden_dim, 64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, 1)
-        )
-    
-    def forward(self, style_features):
-        return self.net(style_features)
+from utils.patch_utils import extract_patches, aggregate_patch_features
+from utils.model_utils import load_classifier
+from utils.feature_utils import build_feature_names
+from utils.config_loader import Config, get_device, ensure_multi_stat
 
 
 def main():
-    # Configuration
-    metadata_path = "openfake-annotation/datasets/combined/metadata.json"
-    checkpoint_path = "checkpoints/pure_style.pt"
+    """
+    Extract style features + predictions for LLM training data generation.
+    
+    Uses:
+    1. PureStyleExtractor to extract 25 base style features per patch
+    2. Multi-stat pooling to create 100D feature vectors
+    3. Trained classifier to predict fake/real
+    
+    Output: JSONL with features + predictions
+    """
+    # Ensure multi-stat is configured
+    ensure_multi_stat()
+    
+    # Configuration from config.yaml
+    metadata_path = Config.metadata_path()
+    checkpoint_path = Config.checkpoint()
     output_path = "openfake-annotation/datasets/combined/llm_training_data_real.jsonl"
+    patch_size = Config.patch_size()
+    stride = Config.stride()
     
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    
+    device = get_device()
 
     print(f"Device: {device}")
     print(f"Metadata: {metadata_path}")
     print(f"Model checkpoint: {checkpoint_path}")
     print(f"Output: {output_path} (JSONL - incremental saving)")
+    print(f"Patch size: {patch_size}, Stride: {stride}")
+    print(f"Pooling: Multi-stat (100D ONLY)")
     print()
     
     # Load metadata
@@ -87,14 +60,9 @@ def main():
     feature_names = style_extractor.get_feature_names()
     print(f"Initialized PureStyleExtractor ({len(feature_names)} features)")
     
-    # Load trained model
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    style_dim = checkpoint.get("style_dim", 25)
-    
-    model = PureStyleClassifier(style_dim=style_dim).to(device)
-    model.load_state_dict(checkpoint["model"])
-    model.eval()
-    print(f"Loaded trained model")
+    # Load trained model using utility function
+    model, style_dim = load_classifier(checkpoint_path, device)
+    print(f"Loaded trained model (style_dim={style_dim})")
     print()
     
     # Prepare output file (overwrite if exists)
@@ -137,21 +105,15 @@ def main():
                 img = Image.open(image_path).convert("RGB")
                 img_array = np.array(img)
                 
-                # Extract patches and compute 100 features (multi-stat pooling)
-                patch_size = 512
-                stride = 512
-                patches = extract_patches(img_array, patch_size, stride)
+                # Extract patches using config values
+                patches, patch_locations = extract_patches(img_array, patch_size, stride)
                 
-                # Extract 25 features from each patch
+                # Extract 25 base features from each patch (ALWAYS normalized)
                 patch_feats = [style_extractor(p, normalize=True) for p in patches]
                 patch_feats = np.stack(patch_feats, axis=0)  # Shape: (n_patches, 25)
                 
-                # Multi-stat pooling: mean+std+max+min across patches results in 100 features
-                mean_vec = np.mean(patch_feats, axis=0)  # (25,)
-                std_vec = np.std(patch_feats, axis=0)    # (25,)
-                max_vec = np.max(patch_feats, axis=0)    # (25,)
-                min_vec = np.min(patch_feats, axis=0)    # (25,)
-                style_vec = np.concatenate([mean_vec, std_vec, max_vec, min_vec])  # (100,)
+                #  use multi-stat pooling (100D)
+                style_vec = aggregate_patch_features(patch_feats, use_multi_stat=True)
                 
                 # Run through trained model to get prediction
                 style_tensor = torch.tensor(style_vec, dtype=torch.float32).unsqueeze(0).to(device)
@@ -163,14 +125,9 @@ def main():
                 prediction = "real" if prob_real > 0.5 else "fake"
                 confidence = max(prob_real, prob_fake)
                 
-                # Create feature dictionary with multi-stat labels
-                # 100 features = 25 base features × 4 statistics (mean, std, max, min)
-                features_dict = {}
-                for i, name in enumerate(feature_names):
-                    features_dict[f"{name}_mean"] = float(mean_vec[i])
-                    features_dict[f"{name}_std"] = float(std_vec[i])
-                    features_dict[f"{name}_max"] = float(max_vec[i])
-                    features_dict[f"{name}_min"] = float(min_vec[i])
+                # Create feature dictionary - always 100D multi-stat
+                full_feature_names = build_feature_names(style_dim)
+                features_dict = {name: float(val) for name, val in zip(full_feature_names, style_vec)}
                 
                 # Compile training example
                 training_example = {
@@ -180,7 +137,7 @@ def main():
                     "true_label": item["true_label"],
                     "similarity": item.get("similarity", 0.0),
                     
-                    # Model predictions (from pure_style.pt)
+                    # Model predictions
                     "prediction": prediction,
                     "confidence": confidence,
                     "prob_real": prob_real,
