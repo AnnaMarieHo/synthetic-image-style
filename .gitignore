@@ -1,6 +1,6 @@
 openfake-annotation/datasets/
-checkpoints/
 venv/
 __pycache__/
 *.ipynb
 trained_qwen2.5_1.5b_feature_interpreter
+model_upload.py
