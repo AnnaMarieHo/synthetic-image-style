@@ -1,6 +1,7 @@
 [Explainable Synthetic Image Detection.pdf](https://github.com/user-attachments/files/25499464/proposal.pdf)
-[Project Presentation.pptx…]()
 
+
+[Presentation.pptx](https://github.com/user-attachments/files/26484467/660_presentation.pptx)
 
 Utilizing K-means and PCA, we performed EDA no the OpenFake dataset revealing that there was significant discrepency between both content and resolution of real images and synthetic images. As illustrated in plot 1 (the style clusters), there were predominant style groupings based on image style alone. we further explored the difference between the image classes (plot 2), revealing a significant difference between real and fake image content. To evaluate whether the dataset possessed any style overlap between real and fake images, we evaluated the style space alone, revealing that cluter 0 from plot 1 contained significant style deviations from the fake image class. We then evaluated the resolution of these images, finding that a large number of real images deviated from the fake images in both style and resolution. Finally, we identified the cluster with the most overlapping content and resloution to be cluster 1.
 
